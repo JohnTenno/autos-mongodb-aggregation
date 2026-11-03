@@ -2,6 +2,8 @@
 
 Proyecto 2a de Bases de Datos Avanzadas. La base relacional BDAutosU2 (Oracle) migrada a MongoDB, las 25 consultas con Aggregation Framework y una aplicación en Python (Flask) que ejecuta cada consulta y muestra su código y su resultado.
 
+Equipo: Leonardo Franco Bulkley, Ivan Eduardo Urrutia Rodriguez y Jonathan Gandara Salazar.
+
 ## Modelo de documentos
 
 | Colección | Tablas de origen | Diseño |

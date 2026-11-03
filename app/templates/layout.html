@@ -1,0 +1,44 @@
+{# Shell shared by every page: ink sidebar, reading-cell top bar, content. #}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#191C1D">
+  <title>{% block title %}BD Autos{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Mono&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+<div class="shell">
+
+  <aside class="sidebar" aria-label="Navegación principal">
+    <a class="brand" href="{{ url_for('dashboard.index') }}">
+      <span class="brand-mark" aria-hidden="true">{% include "partials/glyph.html" %}</span>
+      <span>
+        <span class="brand-name">BD Autos</span><br>
+        <span class="brand-sub">MongoDB</span>
+      </span>
+    </a>
+    <nav class="nav">{% include "partials/nav_links.html" %}</nav>
+    <div class="sidebar-foot">Conectado a<strong>{{ db_target }}</strong></div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="cell"><span class="cell-label">Base de datos</span><span class="cell-value">{{ db_target.split('/')[-1] }}</span></div>
+      <div class="cell"><span class="cell-label">Servidor</span><span class="cell-value">{{ db_target.rsplit('/', 1)[0] }}</span></div>
+      {% block cells %}{% endblock %}
+    </header>
+    <main class="content" id="contenido">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+</div>
+<nav class="bottom-nav" aria-label="Navegación principal">{% include "partials/nav_links.html" %}</nav>
+</body>
+</html>

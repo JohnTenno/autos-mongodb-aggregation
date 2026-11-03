@@ -1,0 +1,8 @@
+<a href="{{ url_for('dashboard.index') }}" {% if section == 'resumen' %}aria-current="page"{% endif %}>
+  <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 3h14v12H2zM2 7h14M7 7v8"/></svg>
+  Resumen
+</a>
+<a href="{{ url_for('queries.index') }}" {% if section == 'consultas' %}aria-current="page"{% endif %}>
+  <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 4h12M3 9h12M3 14h7"/></svg>
+  Consultas
+</a>

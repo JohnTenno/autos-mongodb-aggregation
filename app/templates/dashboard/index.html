@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+{% block title %}Resumen - BD Autos{% endblock %}
+{% block cells %}
+<div class="cell"><span class="cell-label">Colecciones</span><span class="cell-value">{{ rows|length }}</span></div>
+<div class="cell"><span class="cell-label">Documentos</span><span class="cell-value">{{ total_documents }}</span></div>
+{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1 class="title">BDAutos migrada a MongoDB</h1>
+  <p class="lead">Las seis tablas del modelo relacional quedaron en tres colecciones. Lo que siempre se consulta junto va embebido, y cada auto se enlaza con su fabricante por <code>makerId</code>.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Colección</th><th>Tablas de origen</th><th>Diseño</th><th class="n">Documentos</th><th class="n">Índices</th><th class="n">Tamaño (KB)</th></tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td><strong>{{ row.name }}</strong></td>
+          <td>{{ row.source }}</td>
+          <td>{{ row.design }}</td>
+          <td class="n">{{ row.documents }}</td>
+          <td class="n">{{ row.indexes }}</td>
+          <td class="n">{{ row.size_kb }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="3">Total</td><td class="n">{{ total_documents }}</td><td class="n">{{ total_indexes }}</td><td class="n">{{ total_size }}</td></tr>
+      </tfoot>
+    </table>
+  </div>
+
+  {% if total_documents == 0 %}
+  <div class="notice notice-warn"><strong>La base está vacía.</strong> Carga los datos con <code>python -m scripts.migrate</code> y vuelve a abrir esta página.</div>
+  {% endif %}
+
+  <div class="actions"><a class="btn btn-primary" href="{{ url_for('queries.index') }}">Ver las 25 consultas</a></div>
+</section>
+{% endblock %}

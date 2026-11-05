@@ -1,9 +1,0 @@
-{% extends "layout.html" %}
-{% block title %}Aviso - BD Autos{% endblock %}
-{% block content %}
-<section class="panel">
-  <h1 class="title">No se pudo completar</h1>
-  <div class="notice notice-error"><strong>{{ message }}</strong></div>
-  <div class="actions"><a class="btn" href="{{ url_for('dashboard.index') }}">Volver al resumen</a></div>
-</section>
-{% endblock %}

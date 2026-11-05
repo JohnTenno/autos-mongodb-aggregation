@@ -1,13 +1,8 @@
-"""Development entry point.
-
-Usage:  .venv/bin/python main.py
-Then open http://127.0.0.1:5000
-"""
 from app import create_app
+from app.database import config
 
-application = create_app()
+app = create_app()
 
 if __name__ == "__main__":
-    print(f"BD Autos - MongoDB en {application.config['APP_CONFIG'].db_target}")
-    print("Abre http://127.0.0.1:5000")
-    application.run(debug=True)
+    print(f"BD Autos - MongoDB at {config.db_target}")
+    app.run(debug=True)

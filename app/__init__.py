@@ -1,32 +1,23 @@
-"""Application factory.
+from flask import Flask
 
-Wires the cross cutting pieces (config, database, template helpers, error
-handling) and then lets every feature module register its own routes.
-"""
-from flask import Flask, render_template
-
-from app.config import Config
-from app.core import database, presentation
-from app.core.exceptions import AppError
-from app.modules import register_modules
+from app.database import config
+from app.modules.cars.cars_controller import cars
+from app.modules.continents.continents_controller import continents
+from app.modules.dashboard.dashboard_controller import dashboard
+from app.modules.makers.makers_controller import makers
 
 
-def create_app(config: Config | None = None) -> Flask:
+def create_app() -> Flask:
     app = Flask(__name__)
-    app.config["APP_CONFIG"] = config or Config.from_env()
-    app.secret_key = app.config["APP_CONFIG"].secret_key
+    app.jinja_env.policies["json.dumps_kwargs"] = {"sort_keys": False, "ensure_ascii": False}
 
-    database.register(app)
-    presentation.register(app)
-    register_modules(app)
-    _register_error_handler(app)
+    app.register_blueprint(dashboard)
+    app.register_blueprint(cars)
+    app.register_blueprint(makers)
+    app.register_blueprint(continents)
+
+    @app.context_processor
+    def inject_globals():
+        return {"db_target": config.db_target}
 
     return app
-
-
-def _register_error_handler(app: Flask) -> None:
-    """Show business errors as a notice instead of a 500 page."""
-
-    @app.errorhandler(AppError)
-    def handle_app_error(error: AppError):
-        return render_template("error.html", message=error.message), 400

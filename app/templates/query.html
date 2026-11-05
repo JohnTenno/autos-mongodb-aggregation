@@ -1,0 +1,39 @@
+{% extends "layout.html" %}
+{% set section = "queries" %}
+{% block title %}Consulta {{ number }} - BD Autos{% endblock %}
+{% block cells %}
+<div class="cell"><span class="cell-label">Consulta</span><span class="cell-value">{{ number }} de 25</span></div>
+<div class="cell"><span class="cell-label">Colección</span><span class="cell-value">{{ collection }}</span></div>
+{% endblock %}
+{% block content %}
+<div class="workbench">
+  <nav aria-label="Consultas">{% include "partials/queries_nav.html" %}</nav>
+
+  <div class="detail">
+    <section class="panel">
+      <p class="eyebrow">Consulta {{ number }}</p>
+      <h2 class="section-title">Código</h2>
+      <pre class="code" tabindex="0"><code>db.{{ collection }}.aggregate({{ pipeline|tojson(indent=2) }})</code></pre>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" id="run">Ejecutar consulta</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="section-title">Resultado</h2>
+      <p class="lead" id="waiting">Ejecuta la consulta para ver aquí los documentos que regresa.</p>
+      <div id="result" hidden>
+        <p class="state-ok count">{{ result|length }} documento{{ '' if result|length == 1 else 's' }}</p>
+        <pre class="code json" tabindex="0"><code>{{ result|tojson(indent=2) }}</code></pre>
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+  document.getElementById("run").addEventListener("click", function () {
+    document.getElementById("waiting").hidden = true;
+    document.getElementById("result").hidden = false;
+    document.getElementById("result").scrollIntoView({ behavior: "smooth" });
+  });
+</script>
+{% endblock %}

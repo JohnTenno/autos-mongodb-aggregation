@@ -1,25 +1,26 @@
-"""Migrate BDAutosU2 (Oracle script) into the autos MongoDB database.
-
-Usage:  .venv/bin/python -m scripts.migrate [ruta/al/BDAutosU2.sql]
-
-Reads the INSERT statements of the relational script, builds the documents
-described in app/core/schema.py, recreates the collections with their
-validators and indexes, loads the data and writes database/autos_mongodb.js
-(the same database as a mongosh script, for Compass or mongosh).
-"""
+import json
 import re
 import sys
 from collections import defaultdict
+from dataclasses import asdict
 from pathlib import Path
 
 from app.config import Config
-from app.core import mongosh
-from app.core.database import connect
-from app.core.schema import COLLECTIONS, INDEXES, VALIDATORS
+from app.database import get_db
+from app.modules.cars.schemas.car_schema import CAR_INDEXES, Car, CarModel, Details
+from app.modules.continents.schemas.continent_schema import CONTINENT_INDEXES, Continent, Country
+from app.modules.makers.schemas.maker_schema import (MAKER_INDEXES, Maker, MakerContinent,
+                                                     MakerCountry, MakerModel)
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SQL = ROOT / "docs" / "BDAutosU2.sql"
 JS_OUTPUT = ROOT / "database" / "autos_mongodb.js"
+
+COLLECTIONS = [
+    ("continents", CONTINENT_INDEXES),
+    ("makers", MAKER_INDEXES),
+    ("cars", CAR_INDEXES),
+]
 
 INSERT = re.compile(r"INSERT INTO (\w+) VALUES\s*\((.*)\);", re.IGNORECASE)
 VALUE = re.compile(r"'((?:[^']|'')*)'|(-?\d+(?:\.\d+)?)|(NULL)", re.IGNORECASE)
@@ -29,7 +30,6 @@ EXPECTED = {"CONTINENTS": 5, "COUNTRIES": 17, "CAR_MAKERS": 20,
 
 
 def read_tables(sql: str) -> dict[str, list[tuple]]:
-    """Every INSERT as a tuple of Python values, grouped by table."""
     tables = defaultdict(list)
     for match in INSERT.finditer(sql):
         values = []
@@ -45,76 +45,61 @@ def read_tables(sql: str) -> dict[str, list[tuple]]:
 
 
 def number(value):
-    """5.0 -> 5 so whole numbers are stored as int, like NUMBER(10)."""
     return int(value) if isinstance(value, float) and value.is_integer() else value
 
 
-def build_documents(tables: dict[str, list[tuple]]) -> dict[str, list[dict]]:
-    continents = {cid: {"_id": cid, "name": name, "countries": []}
-                  for cid, name in tables["CONTINENTS"]}
+def build_documents(tables: dict[str, list[tuple]]) -> dict[str, list]:
+    continents = {cid: Continent(cid, name, []) for cid, name in tables["CONTINENTS"]}
     countries = {}
     for country_id, name, cont_id in tables["COUNTRIES"]:
-        continents[cont_id]["countries"].append({"_id": country_id, "name": name})
-        countries[country_id] = {
-            "_id": country_id, "name": name,
-            "continent": {"_id": cont_id, "name": continents[cont_id]["name"]},
-        }
+        continent = continents[cont_id]
+        continent.countries.append(Country(country_id, name))
+        countries[country_id] = MakerCountry(country_id, name,
+                                             MakerContinent(cont_id, continent.name))
 
-    makers = {mid: {"_id": mid, "name": name, "fullName": full,
-                    "country": countries[country_id], "models": []}
+    makers = {mid: Maker(mid, name, full, countries[country_id], [])
               for mid, name, full, country_id in tables["CAR_MAKERS"]}
     models = {}
     for model_id, maker_id, name in tables["MODEL_DETAILS"]:
-        makers[maker_id]["models"].append({"_id": model_id, "name": name})
-        models[model_id] = {"_id": model_id, "name": name, "makerId": maker_id}
+        makers[maker_id].models.append(MakerModel(model_id, name))
+        models[model_id] = (name, maker_id)
 
     details = {row[0]: row[1:] for row in tables["CAR_DETAILS"]}
     cars = []
     for car_id, model_id, descr in tables["CAR_NAMES"]:
-        mpg, cylinders, edispl, horsepower, weight, accel, year = map(number, details[car_id])
-        model = models[model_id]
-        cars.append({
-            "_id": car_id,
-            "descr": descr,
-            "model": {"_id": model["_id"], "name": model["name"]},
-            "makerId": model["makerId"],
-            "details": {"mpg": mpg, "cylinders": cylinders, "edispl": edispl,
-                        "horsepower": horsepower, "weight": weight,
-                        "accel": accel, "year": year},
-        })
+        name, maker_id = models[model_id]
+        cars.append(Car(car_id, descr, CarModel(model_id, name), maker_id,
+                        Details(*map(number, details[car_id]))))
 
     return {"continents": list(continents.values()),
             "makers": list(makers.values()),
             "cars": cars}
 
 
-def load(documents: dict[str, list[dict]], config: Config) -> None:
-    db = connect(config.mongo_uri)[config.db_name]
-    for name in COLLECTIONS:
+def load(documents: dict[str, list]) -> None:
+    db = get_db()
+    for name, indexes in COLLECTIONS:
         db.drop_collection(name)
-        db.create_collection(name, validator={"$jsonSchema": VALIDATORS[name]})
-        db[name].insert_many(documents[name])
-    for collection, keys, options in INDEXES:
-        db[collection].create_index(keys, **options)
+        db[name].insert_many([asdict(document) for document in documents[name]])
+        for keys, options in indexes:
+            db[name].create_index(list(keys.items()), **options)
 
 
-def write_script(documents: dict[str, list[dict]], db_name: str) -> None:
+def to_json(value) -> str:
+    return json.dumps(value, ensure_ascii=False, indent=2)
+
+
+def write_script(documents: dict[str, list], db_name: str) -> None:
     lines = [
-        "// Base de datos autos (BDAutosU2 migrada a MongoDB)",
-        "// Generado por scripts/migrate.py. Se ejecuta en mongosh o en la pestaña",
-        "// MONGOSH de Compass:  load(\"database/autos_mongodb.js\")",
-        "",
-        f"db = db.getSiblingDB({mongosh.to_js(db_name)});",
+        f"db = db.getSiblingDB({json.dumps(db_name)});",
         "",
     ]
-    for name in COLLECTIONS:
+    for name, indexes in COLLECTIONS:
         lines.append(f"db.{name}.drop();")
-        lines.append(f"db.createCollection({mongosh.to_js(name)}, "
-                     f"{mongosh.to_js({'validator': {'$jsonSchema': VALIDATORS[name]}})});")
-        lines.append(mongosh.call(name, "insertMany", documents[name], width=110) + ";")
+        lines.append(f"db.{name}.insertMany({to_json([asdict(d) for d in documents[name]])});")
+        for keys, options in indexes:
+            lines.append(f"db.{name}.createIndex({to_json(keys)}, {to_json(options)});")
         lines.append("")
-    for collection, keys, options in INDEXES:
-        lines.append(mongosh.call(collection, "createIndex", dict(keys), options) + ";")
     JS_OUTPUT.parent.mkdir(exist_ok=True)
     JS_OUTPUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -123,18 +108,17 @@ def main() -> None:
     sql_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_SQL
     tables = read_tables(sql_path.read_text(encoding="utf-8"))
     for table, count in EXPECTED.items():
-        assert len(tables[table]) == count, f"{table}: {len(tables[table])} filas, se esperaban {count}"
+        assert len(tables[table]) == count, f"{table}: {len(tables[table])} rows, expected {count}"
 
     documents = build_documents(tables)
-    assert sum(len(m["models"]) for m in documents["makers"]) == 42
-    assert all(len(car["details"]) == 7 for car in documents["cars"])
+    assert sum(len(maker.models) for maker in documents["makers"]) == 42
 
     config = Config.from_env()
     write_script(documents, config.db_name)
-    load(documents, config)
+    load(documents)
     print(f"{config.db_target}: " + ", ".join(
-        f"{len(documents[n])} {n}" for n in COLLECTIONS))
-    print(f"Script mongosh: {JS_OUTPUT.relative_to(ROOT)}")
+        f"{len(documents[name])} {name}" for name, _ in COLLECTIONS))
+    print(f"mongosh script: {JS_OUTPUT.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
